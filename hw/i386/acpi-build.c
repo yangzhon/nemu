@@ -2894,11 +2894,6 @@ void acpi_setup(MachineState *machine, AcpiConfiguration *conf)
         return;
     }
 
-    if (!conf->fw_cfg) {
-        ACPI_BUILD_DPRINTF("No fw cfg. Bailing out.\n");
-        return;
-    }
-
     build_state = g_malloc0(sizeof *build_state);
     conf->build_state = build_state;
 
@@ -2906,7 +2901,7 @@ void acpi_setup(MachineState *machine, AcpiConfiguration *conf)
     acpi_build(&tables, machine, conf);
 
     if (conf->fw_cfg) {
-            /* Now expose it all to Guest */
+        /* Now expose it all to Guest */
         build_state->table_mr = acpi_add_rom_blob(conf, tables.table_data,
                                                   ACPI_BUILD_TABLE_FILE,
                                                   ACPI_BUILD_TABLE_MAX_SIZE);
