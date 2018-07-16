@@ -2635,6 +2635,99 @@ static bool acpi_get_mcfg(AcpiMcfgInfo *mcfg)
     return true;
 }
 
+static void virt_acpi_dsdt_add_cpus(Aml *scope, int smp_cpus)
+{
+    uint16_t i;
+
+    for (i = 0; i < smp_cpus; i++) {
+        Aml *dev = aml_device("C%.03X", i);
+        aml_append(dev, aml_name_decl("_HID", aml_string("ACPI0007")));
+        aml_append(dev, aml_name_decl("_UID", aml_int(i)));
+        aml_append(scope, dev);
+    }
+}
+
+static void
+virt_i386_build_dsdt(GArray *table_data, BIOSLinker *linker)
+{
+    Aml *dsdt, *scope, *dev;
+
+    dsdt = init_aml_allocator();
+
+    /* Reserve space for header */
+    acpi_data_push(dsdt->buf, sizeof(AcpiTableHeader));
+
+    scope = aml_scope("\\_SB");
+    virt_acpi_dsdt_add_cpus(scope, smp_cpus);
+    dev = aml_device("PCI0");
+    aml_append(dev, aml_name_decl("_HID", aml_eisaid("PNP0A08")));
+    aml_append(dev, aml_name_decl("_CID", aml_eisaid("PNP0A03")));
+    aml_append(dev, aml_name_decl("_ADR", aml_int(0)));
+    aml_append(dev, aml_name_decl("_UID", aml_int(1)));
+    aml_append(scope, dev);
+    aml_append(dsdt, scope);
+
+    /* copy AML table into ACPI tables blob and patch header there */
+    g_array_append_vals(table_data, dsdt->buf->data, dsdt->buf->len);
+    build_header(linker, table_data,
+        (void *)(table_data->data + table_data->len - dsdt->buf->len),
+        "DSDT", dsdt->buf->len, 1, NULL, NULL);
+    free_aml_allocator();
+}
+
+static void
+virt_i386_acpi_build(AcpiBuildTables *tables, MachineState *machine, AcpiConfiguration *conf)
+{
+    GArray *table_offsets;
+    unsigned dsdt_tbl_offset, rsdt_tbl_offset, fadt_tbl_offset;
+    size_t aml_len = 0;
+    GArray *tables_blob = tables->table_data;
+
+    table_offsets = g_array_new(false, true, sizeof(uint32_t));
+    ACPI_BUILD_DPRINTF("init virt ACPI tables\n");
+
+    bios_linker_loader_alloc(tables->linker,
+                             ACPI_BUILD_TABLE_FILE, tables_blob,
+                             64 /* Ensure FACS is aligned */,
+                             false /* high memory */);
+
+    /* DSDT is pointed to by FADT */
+    dsdt_tbl_offset = tables_blob->len;
+    virt_i386_build_dsdt(tables_blob, tables->linker);
+
+    aml_len += tables_blob->len - dsdt_tbl_offset;
+
+    /* ACPI tables pointed to by RSDT */
+    fadt_tbl_offset = tables_blob->len;
+    acpi_add_table(table_offsets, tables_blob);
+    AcpiFadtData fadt = {
+        .rev = 5,
+        .minor_ver = 1,
+        .flags = 1 << ACPI_FADT_F_HW_REDUCED_ACPI,
+        //.facs_tbl_offset = &facs_tbl_offset,
+        .dsdt_tbl_offset = &dsdt_tbl_offset,
+        .xdsdt_tbl_offset = &dsdt_tbl_offset,
+    };
+    build_fadt(tables_blob, tables->linker, &fadt,
+               NULL, NULL);
+    aml_len += tables_blob->len - fadt_tbl_offset;
+
+    //acpi_add_table(table_offsets, tables_blob);
+    //build_madt(tables_blob, tables->linker, machine, conf);
+
+    /* RSDT is pointed to by RSDP */
+    rsdt_tbl_offset = tables_blob->len;
+    build_rsdt(tables_blob, tables->linker, table_offsets,
+               NULL, NULL);
+
+    /* RSDP is in FSEG memory, so allocate it separately */
+    build_rsdp(tables->rsdp, tables->linker, rsdt_tbl_offset);
+    acpi_align_size(tables->linker->cmd_blob, ACPI_BUILD_ALIGN_SIZE);
+
+    /* Cleanup memory that's no longer used. */
+    g_array_free(table_offsets, true);
+}
+
 static
 void acpi_build(AcpiBuildTables *tables, MachineState *machine, AcpiConfiguration *conf)
 {
@@ -2888,6 +2981,7 @@ void acpi_setup(MachineState *machine, AcpiConfiguration *conf)
     AcpiBuildTables tables;
     AcpiBuildState *build_state;
     Object *vmgenid_dev;
+    MachineClass *mc = MACHINE_GET_CLASS(machine);
 
     if (!conf) {
         ACPI_BUILD_DPRINTF("No ACPI config. Bailing out.\n");
@@ -2898,7 +2992,11 @@ void acpi_setup(MachineState *machine, AcpiConfiguration *conf)
     conf->build_state = build_state;
 
     acpi_build_tables_init(&tables);
-    acpi_build(&tables, machine, conf);
+    if (strcmp(mc->alias, "virt") == 0) {
+        virt_i386_acpi_build(&tables, machine, conf);
+    } else {
+        acpi_build(&tables, machine, conf);
+    }
 
     if (conf->fw_cfg) {
         /* Now expose it all to Guest */
