@@ -47,6 +47,9 @@ typedef struct {
 
     /* Firmware */
     bool fw;
+
+    /* RAM size */
+    ram_addr_t below_4g_mem_size;
 } VirtMachineState;
 
 #define VIRT_MACHINE_FW "fw"
