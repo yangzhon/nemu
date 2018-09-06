@@ -14,6 +14,7 @@
 #include "hw/qdev-core.h"
 #include "hw/i386/pc.h"
 #include "./../../vfio/pci.h"
+#include "hw/i386/apic_internal.h"
 
 DeviceState *isa_pic=NULL;
 
@@ -36,6 +37,11 @@ void vfio_display_reset(VFIOPCIDevice *vdev)
 }
 
 int vfio_display_probe(VFIOPCIDevice *vdev, Error **errp)
+{
+    return 0;
+}
+
+int pic_read_irq(DeviceState *d)
 {
     return 0;
 }
