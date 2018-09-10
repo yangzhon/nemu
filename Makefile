@@ -596,6 +596,10 @@ qapi-modules = $(SRC_PATH)/qapi/qapi-schema.json $(SRC_PATH)/qapi/common.json \
                $(SRC_PATH)/qapi/transaction.json \
                $(SRC_PATH)/qapi/ui.json
 
+ifdef CONFIG_WDT
+qapi-modules += $(SRC_PATH)/qapi/watchdog.json
+endif
+
 qapi/qapi-builtin-types.c qapi/qapi-builtin-types.h \
 qapi/qapi-types.c qapi/qapi-types.h \
 qapi/qapi-types-block-core.c qapi/qapi-types-block-core.h \

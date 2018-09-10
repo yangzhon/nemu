@@ -1,0 +1,16 @@
+# -*- Mode: Python -*-
+#
+
+##
+# = Watchdog run state
+##
+
+##
+# @watchdog-set-action:
+#
+# Set watchdog action
+#
+# Since: 2.11
+##
+{ 'command': 'watchdog-set-action', 'data' : {'action': 'WatchdogAction'} }
+

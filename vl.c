@@ -3503,6 +3503,7 @@ int main(int argc, char **argv, char **envp)
                     default_monitor = 0;
                 }
                 break;
+#ifdef CONFIG_WDT
             case QEMU_OPTION_watchdog:
                 if (watchdog) {
                     error_report("only one watchdog option may be given");
@@ -3516,6 +3517,7 @@ int main(int argc, char **argv, char **envp)
                     exit(1);
                 }
                 break;
+#endif
             case QEMU_OPTION_virtiocon:
                 warn_report("This option is deprecated, "
                             "use '-device virtconsole' instead");
@@ -4500,11 +4502,13 @@ int main(int argc, char **argv, char **envp)
         select_vgahw(vga_model);
     }
 
+#ifdef CONFIG_WDT
     if (watchdog) {
         i = select_watchdog(watchdog);
         if (i > 0)
             exit (i == 1 ? 1 : 0);
     }
+#endif
 
     /* This checkpoint is required by replay to separate prior clock
        reading from the other reads, because timer polling functions query
