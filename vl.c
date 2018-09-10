@@ -1359,6 +1359,7 @@ static void igd_gfx_passthru(void)
 /***********************************************************/
 /* USB devices */
 
+#ifdef CONFIG_USB_CORE
 static int usb_device_add(const char *devname)
 {
     USBDevice *dev = NULL;
@@ -1376,12 +1377,26 @@ static int usb_device_add(const char *devname)
 
 static int usb_parse(const char *cmdline)
 {
+
     int r;
     r = usb_device_add(cmdline);
     if (r < 0) {
         error_report("could not add USB device '%s'", cmdline);
     }
     return r;
+}
+#endif // CONFIG_USB_CORE
+
+static int usb_init(void)
+{
+#ifdef CONFIG_USB_CORE
+    if (machine_usb(current_machine)) {
+        if (foreach_device_config(DEV_USB, usb_parse) < 0)
+            return -1;
+    }
+#endif
+
+    return 0;
 }
 
 /***********************************************************/
@@ -4529,9 +4544,8 @@ int main(int argc, char **argv, char **envp)
     }
 
     /* init USB devices */
-    if (machine_usb(current_machine)) {
-        if (foreach_device_config(DEV_USB, usb_parse) < 0)
-            exit(1);
+    if (usb_init()) {
+        exit(1);
     }
 
     /* Check if IGD GFX passthrough. */
